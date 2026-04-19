@@ -1,14 +1,14 @@
 [package]
 name = "editor"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
-[dependencies.tk-pie]
+[target.'cfg(target_os = "linux")'.dependencies.tk-pie]
 path = "../lib"
 package = "tk-pie"
 features = ["std"]
 
-[dependencies]
+[target.'cfg(target_os = "linux")'.dependencies]
 clap = { version = "4.5.1", features = ["derive"] }
 eframe = { version = "0.28.1", features = ["persistence", "ron", "serde"] }
 egui = { version = "0.28.1", features = ["persistence", "ron", "serde"] }
