@@ -1,19 +1,19 @@
 pub mod report;
 
 use embassy_executor::Spawner;
-use embassy_futures::select::{select, Either};
+use embassy_futures::select::{Either, select};
 use embassy_rp::{peripherals::USB, usb::Driver};
 use embassy_sync::{
     blocking_mutex::raw::NoopRawMutex,
     mutex::Mutex,
-    pubsub::{subscriber::Sub, PubSubBehavior, PubSubChannel, WaitResult},
+    pubsub::{PubSubBehavior, PubSubChannel, WaitResult, subscriber::Sub},
     signal::Signal,
 };
 use embassy_time::{Duration, Timer};
 use embassy_usb::{
+    Builder,
     class::hid::{self, HidReaderWriter, ReadError, ReportId, RequestHandler},
     control::OutResponse,
-    Builder,
 };
 use embassy_usb_driver::EndpointError;
 use log::error;
@@ -24,7 +24,7 @@ use crate::{
     event::button,
     keyboard::KbEvents,
     keypress_handler::keypress_handler,
-    usb::keyboard::report::{KeyboardReport, EMPTY_KEYBOARD_REPORT},
+    usb::keyboard::report::{EMPTY_KEYBOARD_REPORT, KeyboardReport},
     util::CS,
 };
 
@@ -45,8 +45,6 @@ struct Context {
 
     /// Signalled by [report_task] when a report is sent.
     report_signal: Signal<CS, ()>,
-
-    handler: Handler,
 }
 
 /// Set up a USB HID keyboard. This function panics if called more than once.
@@ -62,8 +60,13 @@ pub async fn setup(builder: &mut Builder<'static, Driver<'static, USB>>, events:
                 unsent: EMPTY_KEYBOARD_REPORT,
             }),
             report_signal: Signal::new(),
-            handler: Handler,
         })
+    };
+
+    let request_handler = {
+        static USB_HANDLER: StaticCell<Handler> = StaticCell::new();
+        // this panics if the functon is called twice
+        USB_HANDLER.init(Handler)
     };
 
     let hid_state = {
@@ -75,41 +78,42 @@ pub async fn setup(builder: &mut Builder<'static, Driver<'static, USB>>, events:
     let config = hid::Config {
         //report_descriptor: MouseReport::desc(),
         report_descriptor: KeyboardReport::desc(),
-        request_handler: Some(&context.handler),
+        request_handler: Some(request_handler),
         poll_ms: 2,
         max_packet_size: MAX_PACKET_SIZE as u16,
     };
 
     let stream = HidStream::new(builder, hid_state, config);
 
-    let spawner = Spawner::for_current_executor().await;
+    // TODO: FIXME: safety comment or use something else
+    let spawner = unsafe { Spawner::for_current_executor().await };
 
-    spawner.must_spawn(report_task(stream, context));
-    spawner.must_spawn(event_listener_task(events, context));
+    spawner.spawn(report_task(stream, context).unwrap());
+    spawner.spawn(event_listener_task(events, context).unwrap());
 
     log::info!("done setting up usb keyboard");
 }
 
 impl RequestHandler for Handler {
-    fn get_report(&self, id: ReportId, buf: &mut [u8]) -> Option<usize> {
+    fn get_report(&mut self, id: ReportId, buf: &mut [u8]) -> Option<usize> {
         log::info!("get_report({id:?}, {buf:?})");
         let _ = (id, buf);
         None
     }
 
-    fn set_report(&self, id: ReportId, data: &[u8]) -> embassy_usb::control::OutResponse {
+    fn set_report(&mut self, id: ReportId, data: &[u8]) -> embassy_usb::control::OutResponse {
         log::info!("set_report({id:?}, {data:?})");
         let _ = (id, data);
         OutResponse::Rejected
     }
 
-    fn get_idle_ms(&self, id: Option<ReportId>) -> Option<u32> {
+    fn get_idle_ms(&mut self, id: Option<ReportId>) -> Option<u32> {
         log::info!("get_idle_ms({id:?})");
         let _ = id;
         None
     }
 
-    fn set_idle_ms(&self, id: Option<ReportId>, duration_ms: u32) {
+    fn set_idle_ms(&mut self, id: Option<ReportId>, duration_ms: u32) {
         log::info!("set_idle_ms({id:?}, {duration_ms})");
         let _ = (id, duration_ms);
     }

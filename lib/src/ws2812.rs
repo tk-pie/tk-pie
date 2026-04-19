@@ -1,7 +1,10 @@
 use embassy_rp::dma::{self, AnyChannel};
 use embassy_rp::interrupt::typelevel::Binding;
-use embassy_rp::pio::{self, FifoJoin, Instance, Pio, PioPin, ShiftConfig, ShiftDirection};
-use embassy_rp::{Peripheral, PeripheralRef};
+use embassy_rp::pio::program::{JmpCondition, OutDestination, SetDestination, SideSet};
+use embassy_rp::pio::{
+    self, program::Assembler, FifoJoin, Pio, PioPin, ShiftConfig, ShiftDirection,
+};
+use embassy_rp::Peri;
 use fixed::FixedU32;
 
 use crate::lights::LightDriver;
@@ -9,21 +12,21 @@ use crate::rgb::Rgb;
 
 pub struct Ws2812<P: pio::Instance + 'static> {
     sm: pio::StateMachine<'static, P, 0>,
-    dma: PeripheralRef<'static, AnyChannel>,
+    dma: Peri<'static, AnyChannel>,
 }
 
-impl<P: Instance> Ws2812<P> {
+impl<P: pio::Instance> Ws2812<P> {
     pub fn new(
-        pio: impl Peripheral<P = P> + 'static,
+        pio: Peri<'static, P>,
         irqs: impl Binding<P::Interrupt, pio::InterruptHandler<P>>,
-        dma: impl dma::Channel,
-        pin: impl PioPin,
+        dma: Peri<'static, impl dma::Channel>,
+        pin: Peri<'static, impl PioPin>,
     ) -> Self {
         let mut pio = Pio::new(pio, irqs);
         let mut sm = pio.sm0;
         // prepare the PIO program
-        let side_set = ::pio::SideSet::new(false, 1, false);
-        let mut a: ::pio::Assembler<32> = ::pio::Assembler::new_with_side_set(side_set);
+        let side_set = SideSet::new(false, 1, false);
+        let mut a: Assembler<32> = Assembler::new_with_side_set(side_set);
 
         const T1: u8 = 2; // start bit
         const T2: u8 = 5; // data bit
@@ -33,14 +36,14 @@ impl<P: Instance> Ws2812<P> {
         let mut wrap_target = a.label();
         let mut wrap_source = a.label();
         let mut do_zero = a.label();
-        a.set_with_side_set(::pio::SetDestination::PINDIRS, 1, 0);
+        a.set_with_side_set(SetDestination::PINDIRS, 1, 0);
         a.bind(&mut wrap_target);
         // Do stop bit
-        a.out_with_delay_and_side_set(::pio::OutDestination::X, 1, T3 - 1, 0);
+        a.out_with_delay_and_side_set(OutDestination::X, 1, T3 - 1, 0);
         // Do start bit
-        a.jmp_with_delay_and_side_set(::pio::JmpCondition::XIsZero, &mut do_zero, T1 - 1, 1);
+        a.jmp_with_delay_and_side_set(JmpCondition::XIsZero, &mut do_zero, T1 - 1, 1);
         // Do data bit = 1
-        a.jmp_with_delay_and_side_set(::pio::JmpCondition::Always, &mut wrap_target, T2 - 1, 1);
+        a.jmp_with_delay_and_side_set(JmpCondition::Always, &mut wrap_target, T2 - 1, 1);
         a.bind(&mut do_zero);
         // Do data bit = 0
         a.nop_with_delay_and_side_set(T2 - 1, 0);
@@ -82,14 +85,17 @@ impl<P: Instance> Ws2812<P> {
 
         Self {
             sm,
-            dma: PeripheralRef::new(dma.degrade()),
+            dma: dma.into(),
         }
     }
 }
 
-impl<P: Instance> LightDriver for Ws2812<P> {
+impl<P: pio::Instance> LightDriver for Ws2812<P> {
     async fn write(&mut self, colors: &[Rgb]) {
         let colors = Rgb::slice_as_u32s(colors);
-        self.sm.tx().dma_push(self.dma.reborrow(), colors).await;
+        self.sm
+            .tx()
+            .dma_push(self.dma.reborrow(), colors, false) // TODO: We assumed false here, maybe double check that.
+            .await;
     }
 }
