@@ -2,6 +2,7 @@
 Alternatively: **tk-pie**, or **Test Keyboard Please IgnorE**.
 A split keyboard design and firmware.
 
+
 ## Directory
 
 ### `/lib`
@@ -20,6 +21,18 @@ KiCad schematics of the keyboard PCBs.
 
 ### `/editor`
 A graphical program for configuring the keyboard layout. Work in progress.
+
+
+## Compilation target
+
+This Rust workspace contains crates which should be compiled for different targets.
+When developing firmware, the target should be set to e.g. `riscv32imac-unknown-none-elf`:
+
+    cargo check --target riscv32imac-unknown-none-elf
+
+And when developing for desktop, the target should be set to your host target.
+By default, this is the case. The target can be configured in your editor, or in
+`.cargo/config.toml`
 
 
 ## Firmware development
