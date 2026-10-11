@@ -1,6 +1,6 @@
 use egui::{Button, Color32, Frame, Rect, ScrollArea, Stroke, Vec2};
 
-use crate::{
+use crate::app::{
     edit_mode::{ButtonIdentifier, EditModeWrapper},
     layouts::Layout,
     serial::SerialState,
@@ -9,7 +9,7 @@ use crate::{
 use super::GuiSettings;
 
 pub fn central_panel(
-    ctx: &egui::Context,
+    ui: &mut egui::Ui,
     gui_settings: &GuiSettings,
     layout: &mut Layout,
     edit_mode: &mut EditModeWrapper,
@@ -31,7 +31,7 @@ pub fn central_panel(
 
     let GuiSettings { u1, margin } = gui_settings;
 
-    egui::CentralPanel::default().show(ctx, |ui| {
+    egui::CentralPanel::default().show(ui, |ui| {
         ScrollArea::both().show(ui, |ui| {
             if let Some(edit) = edit_mode.edit_mode.as_mut() {
                 ui.label("Edit mode active");
@@ -54,7 +54,7 @@ pub fn central_panel(
                     ui.visuals_mut().widgets.inactive.bg_stroke = (1.0, Color32::DARK_GREEN).into();
                 }
 
-                Frame::none().show(ui, |ui| {
+                Frame::new().show(ui, |ui| {
                     for (i, geometry) in button_layout.t.buttons.iter().enumerate() {
                         let margin = *margin * *u1;
                         let size = Vec2::new(
@@ -92,14 +92,14 @@ pub fn central_panel(
 
                         let ui_button = ui.put(rect, button);
 
-                        if let Some(edit) = edit_mode.edit_mode.as_mut() {
-                            if ui_button.clicked() {
-                                edit.selected_button = Some(ButtonIdentifier {
-                                    layer_x: x,
-                                    layer_y: y,
-                                    index: i,
-                                })
-                            }
+                        if let Some(edit) = edit_mode.edit_mode.as_mut()
+                            && ui_button.clicked()
+                        {
+                            edit.selected_button = Some(ButtonIdentifier {
+                                layer_x: x,
+                                layer_y: y,
+                                index: i,
+                            })
                         }
                     }
                 });

@@ -1,28 +1,21 @@
 [package]
 name = "left"
-version = "0.1.0"
 authors = ["Joakim Hulthe <joakim@hulthe.net>"]
 description = "Keyboard firmware"
-edition = "2021"
-
-[dependencies.tk-pie]
-path = "../lib"
-package = "tk-pie"
+edition = "2024"
 
 [target.thumbv6m-none-eabi.dependencies]
-cortex-m-rt = "0.7"
-embassy-rp = { version = "0.1.0", features = ["time-driver", "critical-section-impl"] }
-embassy-executor = { version = "0.5.0", features = ["nightly", "executor-thread", "integrated-timers", "arch-cortex-m"] }
-embassy-sync = "0.5.0"
-embassy-time = "0.3.0"
-embassy-futures = "0.1.1"
-log = "0.4.17"
-postcard = { version = "1.0.4", features = ["alloc"] }
+tk-pie.workspace = true
+cortex-m-rt.workspace = true
+embassy-rp = { workspace = true, features = ["rp2040", "time-driver", "critical-section-impl"] }
+embassy-executor = { workspace = true, features = ["nightly", "executor-thread", "platform-cortex-m"] }
+embassy-sync.workspace = true
+embassy-time.workspace = true
+embassy-futures.workspace = true
+log.workspace = true
+postcard = { workspace = true, features = ["alloc"] }
 
 [build-dependencies]
-ron = "0.8.0"
-postcard = { version = "1", features = ["use-std"] }
-
-[build-dependencies.tk-pie]
-path = "../lib"
-package = "tk-pie"
+tk-pie.workspace = true
+ron.workspace = true
+postcard = { workspace = true, features = ["use-std"] }

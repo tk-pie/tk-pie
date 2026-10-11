@@ -4,6 +4,7 @@ use core::sync::atomic::Ordering;
 
 use alloc::vec::Vec;
 use embassy_rp::{
+    Peri,
     gpio::{AnyPin, Input, Pin, Pull},
     peripherals::PIO1,
 };
@@ -13,11 +14,12 @@ use log::{debug, error, info, warn};
 use static_cell::StaticCell;
 
 use crate::{
+    Spawners,
     atomics::AtomicCoord,
     button::{Button, LayerDir, LayerShift},
     event::{
-        switch::{Event, EventKind},
         Half,
+        switch::{Event, EventKind},
     },
     layer::{Layer, Layers},
     lights::Lights,
@@ -26,16 +28,15 @@ use crate::{
         owned::{ChangeLayer, SwitchPress, SwitchRelease},
     },
     usb::serial::serial_send,
-    util::{SwapCell, SwapCellRead, CS},
+    util::{CS, SwapCell, SwapCellRead},
     ws2812::Ws2812,
-    Spawners,
 };
 
 pub struct KeyboardConfig {
     /// Which board is this.
     pub half: Half,
     /// Array of input pins of each switch
-    pub pins: [AnyPin; SWITCH_COUNT],
+    pub pins: [Peri<'static, AnyPin>; SWITCH_COUNT],
     /// Array of LED indices of each switch
     pub led_map: [usize; SWITCH_COUNT],
     pub led_driver: Ws2812<PIO1>,
@@ -108,6 +109,9 @@ impl KeyboardConfig {
         let layers = LAYERS.init_with(|| SwapCell::new(self.layers));
         let (layers_read, layers_write) = layers.split();
 
+        // TODO: Implement runtime-switching of layers
+        let _ = layers_write;
+
         static STATE: StaticCell<State> = StaticCell::new();
         let state = STATE.init_with(|| State {
             half: self.half,
@@ -120,31 +124,38 @@ impl KeyboardConfig {
         });
 
         for (i, pin) in self.pins.into_iter().enumerate() {
-            if spawners.high.spawn(switch_task(i, pin, state)).is_err() {
+            let Ok(token) = switch_task(i, pin, state) else {
                 error!("failed to spawn switch task, pool_size mismatch?");
                 break;
-            }
+            };
+            spawners.high.spawn(token);
         }
 
-        spawners.med.must_spawn(layer_switch_task(
-            KbEvents {
-                publisher: KB_EVENTS.immediate_publisher(),
-                subscriber: KB_EVENTS
-                    .subscriber()
-                    .expect("Not enough KbEvents allocated"),
-            },
-            state,
-        ));
+        spawners.med.spawn(
+            layer_switch_task(
+                KbEvents {
+                    publisher: KB_EVENTS.immediate_publisher(),
+                    subscriber: KB_EVENTS
+                        .subscriber()
+                        .expect("Not enough KbEvents allocated"),
+                },
+                state,
+            )
+            .unwrap(),
+        );
 
-        spawners.low.must_spawn(lights::task(
-            KbEvents {
-                publisher: KB_EVENTS.immediate_publisher(),
-                subscriber: KB_EVENTS
-                    .subscriber()
-                    .expect("Not enough KbEvents allocated"),
-            },
-            state,
-        ));
+        spawners.low.spawn(
+            lights::task(
+                KbEvents {
+                    publisher: KB_EVENTS.immediate_publisher(),
+                    subscriber: KB_EVENTS
+                        .subscriber()
+                        .expect("Not enough KbEvents allocated"),
+                },
+                state,
+            )
+            .unwrap(),
+        );
 
         Some([(); KB_SUBSCRIBERS].map(|_| {
             KbEvents {
@@ -195,7 +206,7 @@ pub const DEBOUNCE_THRESHOLD: Duration = Duration::from_millis(15);
 
 /// Task for monitoring a single switch pin, and handling button presses.
 #[embassy_executor::task(pool_size = 18)]
-async fn switch_task(switch_num: usize, pin: AnyPin, state: &'static State) -> ! {
+async fn switch_task(switch_num: usize, pin: Peri<'static, AnyPin>, state: &'static State) -> ! {
     let _pin_nr = pin.pin();
     let mut pin = Input::new(pin, Pull::Up);
     let events = KB_EVENTS.immediate_publisher();

@@ -32,12 +32,14 @@ pub struct Spawners {
 
 #[interrupt]
 unsafe fn SWI_IRQ_1() {
-    EXECUTOR_HIGH.on_interrupt()
+    // SAFETY: We are in an interrupt handler.
+    unsafe { EXECUTOR_HIGH.on_interrupt() }
 }
 
 #[interrupt]
 unsafe fn SWI_IRQ_0() {
-    EXECUTOR_MED.on_interrupt()
+    // SAFETY: We are in an interrupt handler.
+    unsafe { EXECUTOR_MED.on_interrupt() }
 }
 
 pub type InitFn = fn(Board) -> MappedBoard;
@@ -64,7 +66,7 @@ pub fn run(init: InitFn) -> ! {
             low: spawner,
         };
 
-        spawner.must_spawn(main_task(board, init, rtt_logger, spawners));
+        spawner.spawn(main_task(board, init, rtt_logger, spawners).unwrap());
     });
 }
 

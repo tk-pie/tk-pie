@@ -2,10 +2,10 @@ use core::future::pending;
 
 use crate::{
     button::{Button, CompShift, Modifier},
-    event::{button, switch, Half},
+    event::{Half, button, switch},
     keys::Key,
 };
-use embassy_sync::pubsub::{publisher::Pub, subscriber::Sub, PubSubBehavior, WaitResult};
+use embassy_sync::pubsub::{PubSubBehavior, WaitResult, publisher::Pub, subscriber::Sub};
 use embassy_time::{Duration, Instant, Timer};
 use futures::FutureExt;
 use heapless::Deque;
@@ -193,9 +193,7 @@ pub async fn keypress_handler(
                 debug!("modtap resolved as mod: {:?}", event.button);
                 slow_press(output, &mut shift_held, &event.button).await;
 
-                loop {
-                    let Some(event) = queue.pop_front() else { break };
-
+                while let Some(event) = queue.pop_front() {
                     // resolve events until we encounter another ModTap,
                     // then put it back in the queue and stop
                     if let Button::ModTap(..) = &event.button {
@@ -339,7 +337,7 @@ mod tests {
     use alloc::vec::Vec;
     use embassy_futures::{
         join::join,
-        select::{select, Either},
+        select::{Either, select},
     };
     use embassy_sync::{blocking_mutex::raw::NoopRawMutex, pubsub::PubSubChannel};
     use embassy_time::with_timeout;

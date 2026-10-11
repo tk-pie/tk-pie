@@ -1,12 +1,16 @@
 [build]
-#target = "thumbv6m-none-eabi"
+# Override default compilation target:
+# target = "thumbv6m-none-eabi"
 
 [target.thumbv6m-none-eabi]
 rustflags = [
     "-C", "linker=flip-link",
-    "-C", "inline-threshold=5", # inline functions more aggressively
     "-C", "no-vectorize-loops",
 ]
 
 #runner = "elf2uf2-rs -d"
 runner = "probe-rs run --chip RP2040"
+
+# Security: Don't allow recently published crates in the lockfile
+[registry]
+global-min-publish-age = "7 days"

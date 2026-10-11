@@ -2,18 +2,18 @@ use egui::{Color32, ScrollArea, Slider, TextEdit, Ui};
 use tk_pie::{button_layout::ButtonLayout, layer::Layer};
 use tokio::{sync::oneshot, task::spawn_blocking};
 
-use crate::{
+use crate::app::{
     edit_mode::EditModeWrapper,
     layouts::{Layout, Layouts},
     mat::Mat,
     ron_utils::RonEdit,
-    serial::{connect_to_serial, scan_for_serial, SerialState},
+    serial::{SerialState, connect_to_serial, scan_for_serial},
 };
 
 use super::GuiSettings;
 
 pub fn side_panel(
-    ctx: &egui::Context,
+    ui: &mut egui::Ui,
     serial: &mut SerialState,
     gui_settings: &mut GuiSettings,
     edit_mode: &mut EditModeWrapper,
@@ -21,14 +21,14 @@ pub fn side_panel(
 ) {
     let GuiSettings { u1, margin } = gui_settings;
 
-    egui::SidePanel::left("side_panel")
+    egui::Panel::left("side_panel")
         .resizable(true)
-        .width_range(250.0..=500.0)
-        .show(ctx, |ui| {
+        .size_range(250.0..=500.0)
+        .show(ui, |ui| {
             ScrollArea::vertical().show(ui, |ui| {
                 ui.heading("Side Panel");
 
-                sidepanel_serial(ctx, serial, ui);
+                sidepanel_serial(ui, serial);
 
                 ui.label("u1");
                 ui.add(Slider::new(u1, 20.0..=150.0));
@@ -44,7 +44,7 @@ pub fn side_panel(
         });
 }
 
-fn sidepanel_serial(ctx: &egui::Context, serial: &mut SerialState, ui: &mut Ui) {
+fn sidepanel_serial(ui: &mut Ui, serial: &mut SerialState) {
     let SerialState {
         scan_task: scan_serial_task,
         dev: serial_devs,
@@ -57,7 +57,7 @@ fn sidepanel_serial(ctx: &egui::Context, serial: &mut SerialState, ui: &mut Ui) 
         match serial_devs {
             Ok(Some(dev)) => {
                 if serial_reader.is_none() && ui.button(format!("Connect to {dev:?}")).clicked() {
-                    *serial_reader = Some(connect_to_serial(dev.clone(), ctx.clone()));
+                    *serial_reader = Some(connect_to_serial(dev.clone(), ui.ctx().clone()));
                 };
             }
             Ok(None) => {
@@ -70,7 +70,7 @@ fn sidepanel_serial(ctx: &egui::Context, serial: &mut SerialState, ui: &mut Ui) 
 
         if ui.button("scan for serial device").clicked() && scan_serial_task.is_none() {
             let (tx, rx) = oneshot::channel();
-            let ctx = ctx.clone();
+            let ctx = ui.ctx().clone();
             spawn_blocking(move || {
                 let r = scan_for_serial().map_err(|e| e.to_string());
                 let _ = tx.send(r);

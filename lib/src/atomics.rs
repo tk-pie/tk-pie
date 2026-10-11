@@ -1,5 +1,6 @@
 use portable_atomic::{AtomicU32, Ordering};
 
+#[derive(Default)]
 pub struct AtomicCoord {
     inner: AtomicU32,
 }

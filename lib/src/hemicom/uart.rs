@@ -1,35 +1,35 @@
 //! UART implementation of communication between keyboard halves
 
 use bytemuck::cast;
+use embassy_rp::Peri;
 use embassy_rp::peripherals::{PIN_0, PIN_1, UART0};
 use embassy_rp::uart::{self, BufferedUartRx, BufferedUartTx, DataBits, Parity, StopBits};
 use embassy_sync::pubsub::PubSubBehavior;
-use embassy_time::{Duration, Timer};
 use embedded_io_async::{Read, Write};
-use futures::{select_biased, FutureExt};
+use futures::{FutureExt, select_biased};
 use heapless::Vec;
 use static_cell::StaticCell;
 
 use super::{
-    compare_seqnums, Header, Message, HEADER_LEN, MAX_BODY_LEN, RESEND_COUNT, RX_BUF_CAP,
-    USB_EVENTS_OUT,
+    HEADER_LEN, Header, MAX_BODY_LEN, Message, RESEND_COUNT, RX_BUF_CAP, USB_EVENTS_OUT,
+    compare_seqnums,
 };
 
 use crate::{
+    Spawners,
     event::Half,
     interrupts::Irqs,
     keyboard::{KbEvents, KbEventsRx, KbEventsTx},
     usb::USB_EVENTS,
-    Spawners,
 };
 
 type Device = UART0;
 
 /// Spawn a task to forward keyboard and usb events between keyboard halves.
 pub async fn start(
-    tx: PIN_0,
-    rx: PIN_1,
-    uart: Device,
+    tx: Peri<'static, PIN_0>,
+    rx: Peri<'static, PIN_1>,
+    uart: Peri<'static, Device>,
     board: Half,
     spawners: Spawners,
     events: KbEvents,
@@ -45,26 +45,26 @@ pub async fn start(
 
     let uart = embassy_rp::uart::BufferedUart::new(
         uart,
-        Irqs,
         tx,
         rx,
+        Irqs,
         TX_BUF.init_with(|| [0u8; 256]),
         RX_BUF.init_with(|| [0u8; 256]),
         config,
     );
 
-    let (rx, tx) = uart.split();
+    let (tx, rx) = uart.split();
     let (events_rx, events_tx) = events.split();
-    spawners.med.must_spawn(send_messages(events_rx, tx, board));
-    spawners.high.must_spawn(receive_messages(events_tx, rx));
+    spawners
+        .med
+        .spawn(send_messages(events_rx, tx, board).unwrap());
+    spawners
+        .high
+        .spawn(receive_messages(events_tx, rx).unwrap());
 }
 
 #[embassy_executor::task]
-async fn send_messages(
-    mut events: KbEventsRx,
-    mut tx: BufferedUartTx<'static, Device>,
-    this_half: Half,
-) -> ! {
+async fn send_messages(mut events: KbEventsRx, mut tx: BufferedUartTx, this_half: Half) -> ! {
     let mut buf = [0u8; HEADER_LEN + MAX_BODY_LEN];
     let mut counter = 0u8;
     let mut seqnum = 0u16;
@@ -81,7 +81,9 @@ async fn send_messages(
             event = USB_EVENTS_OUT.receive().fuse() => Message::UsbEvent(event),
         };
 
-        let (buf_header, buf_body) = buf.split_array_mut();
+        let (buf_header, buf_body) = buf
+            .split_first_chunk_mut()
+            .expect("buf length is >= HEADER_LEN");
         let serialized = match postcard::to_slice(&message, buf_body) {
             Ok(s) => s,
             Err(e) => {
@@ -110,7 +112,7 @@ async fn send_messages(
 }
 
 #[embassy_executor::task]
-async fn receive_messages(mut events: KbEventsTx, mut rx: BufferedUartRx<'static, Device>) -> ! {
+async fn receive_messages(mut events: KbEventsTx, mut rx: BufferedUartRx) -> ! {
     let mut buf: heapless::Vec<u8, RX_BUF_CAP> = Vec::new();
     let mut newest_seen_seqnum = 0u16;
 

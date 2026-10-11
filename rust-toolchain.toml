@@ -1,4 +1,5 @@
 [toolchain]
-channel = "nightly-2024-02-01"
+# Pin the nightly toolchain, as embassy requires it.
+channel = "nightly-2026-10-10"
 components = ["rust-std", "rust-src", "rustfmt", "cargo", "clippy", "rust-analyzer"]
-targets = ["thumbv6m-none-eabi"]
+targets = ["x86_64-unknown-linux-gnu", "thumbv6m-none-eabi"]

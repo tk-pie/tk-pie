@@ -1,5 +1,5 @@
 use embassy_executor::Spawner;
-use embassy_rp::{peripherals::USB, usb::Driver};
+use embassy_rp::{Peri, peripherals::USB, usb::Driver};
 use embassy_sync::pubsub::PubSubBehavior;
 use embassy_usb::{Builder, Config, Handler, UsbDevice};
 use static_cell::StaticCell;
@@ -7,13 +7,13 @@ use static_cell::StaticCell;
 use crate::{hemicom, interrupts::Irqs, keyboard::KbEvents};
 
 use super::{
-    keyboard,
+    MAX_PACKET_SIZE, USB_EVENTS, UsbEvent, keyboard,
     serial::{self, UsbSerial},
-    UsbEvent, MAX_PACKET_SIZE, USB_EVENTS,
 };
 
 struct State {
-    device_descriptor: [u8; 256],
+    // TODO: do we need this?
+    // device_descriptor: [u8; 256],
     config_descriptor: [u8; 256],
     bos_descriptor: [u8; 256],
     msos_descriptor: [u8; 256],
@@ -57,7 +57,10 @@ impl Handler for UsbHandler {
     }
 }
 
-pub async fn setup_logger_and_keyboard(usb: USB, events: KbEvents) -> &'static UsbSerial {
+pub async fn setup_logger_and_keyboard(
+    usb: Peri<'static, USB>,
+    events: KbEvents,
+) -> &'static UsbSerial {
     let mut builder = builder(usb);
 
     let usb_serial = serial::setup(&mut builder).await;
@@ -66,16 +69,21 @@ pub async fn setup_logger_and_keyboard(usb: USB, events: KbEvents) -> &'static U
     log::info!("building usb device");
     let usb = builder.build();
     log::info!("spawning usb task");
-    Spawner::for_current_executor().await.must_spawn(run(usb));
+    // TODO: Unsafe, check.
+    unsafe {
+        Spawner::for_current_executor()
+            .await
+            .spawn(run(usb).unwrap());
+    }
 
     usb_serial
 }
 
-pub fn builder(usb: USB) -> Builder<'static, Driver<'static, USB>> {
+pub fn builder(usb: Peri<'static, USB>) -> Builder<'static, Driver<'static, USB>> {
     // calling init here can't panic because this function can't be called
     // twice since we are taking ownership of the only USB peripheral.
     let state = STATE.init_with(|| State {
-        device_descriptor: [0; 256],
+        // device_descriptor: [0; 256],
         config_descriptor: [0; 256],
         bos_descriptor: [0; 256],
         msos_descriptor: [0; 256],
@@ -103,7 +111,6 @@ pub fn builder(usb: USB) -> Builder<'static, Driver<'static, USB>> {
     let mut builder = Builder::new(
         driver,
         config,
-        &mut state.device_descriptor,
         &mut state.config_descriptor,
         &mut state.bos_descriptor,
         &mut state.msos_descriptor,

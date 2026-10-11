@@ -164,7 +164,7 @@ mod tests {
     #[test]
     fn header_crc() {
         let mock_mody = &[1u8, 2, 3, 4, 5, 6];
-        let header = Header::new(mock_mody.len() as u8, 123, 456).with_valid_crc(mock_mody);
+        let header = Header::new(123, 456, mock_mody);
         assert!(header.valid_header_crc());
         assert!(header.valid_body_crc(mock_mody));
     }
