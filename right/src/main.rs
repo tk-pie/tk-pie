@@ -1,22 +1,20 @@
 //! Firmware for Tk🥧, right half.
 
-// NOTE: the order of attributes matters here..
-#![no_main]
-#![cfg(target_os = "none")] // only try to compile this for embedded
-#![no_std]
+#![cfg_attr(target_os = "none", no_main)]
+#![cfg_attr(target_os = "none", no_std)]
 
+#[cfg(target_os = "none")]
 extern crate alloc;
-extern crate cortex_m_rt;
 
-use alloc::vec::Vec;
-use cortex_m_rt::entry;
-use tk_pie::{
-    board::MappedBoard, event::Half, interrupts::Irqs, keyboard::KeyboardConfig, layer::Layer,
-    ws2812::Ws2812,
-};
-
-#[entry]
+#[cfg(target_os = "none")] // only try to compile this for embedded
+#[cortex_m_rt::entry]
 fn main() -> ! {
+    use alloc::vec::Vec;
+    use tk_pie::{
+        board::MappedBoard, event::Half, interrupts::Irqs, keyboard::KeyboardConfig, layer::Layer,
+        ws2812::Ws2812,
+    };
+
     tk_pie::run(|board| {
         let layers = include_bytes!("layers.pc");
         let Ok(layers): Result<Vec<Vec<Layer>>, _> = postcard::from_bytes(layers) else {
@@ -72,4 +70,9 @@ fn main() -> ! {
             neopixel_power: board.neopixel_power,
         }
     })
+}
+
+#[cfg(not(target_os = "none"))] // stub main for non-embedded targets
+fn main() {
+    panic!("Wrong! You must specify another --target when building this crate.")
 }
