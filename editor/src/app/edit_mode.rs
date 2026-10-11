@@ -2,7 +2,7 @@ use egui::Event;
 use serde::{Deserialize, Serialize};
 use tk_pie::layer::Layer;
 
-use crate::{key_mapper::map_key, mat::Mat, RonEdit};
+use crate::app::{RonEdit, key_mapper::map_key, mat::Mat};
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct ButtonIdentifier {
