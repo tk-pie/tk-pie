@@ -16,6 +16,11 @@ use std::{env, fs};
 use tk_pie::layer::Layer;
 
 fn main() {
+    let target_os = std::env::var("CARGO_CFG_TARGET_OS").unwrap();
+    if target_os != "none" {
+        return; // Only run build script for embedded targets
+    }
+
     memory();
     serialize_layout("./layers.ron", "./src/layers.pc");
 }
