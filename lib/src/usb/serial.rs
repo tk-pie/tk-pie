@@ -2,7 +2,7 @@ use crate::{
     logger::{LogOutput, TimestampedRecord},
     serial_proto::borrowed::{DeviceMsg, LogRecord},
     serial_proto::owned::HostMsg,
-    util::{DisplayPack, CS},
+    util::{CS, DisplayPack},
 };
 
 use super::MAX_PACKET_SIZE;
@@ -12,11 +12,11 @@ use embassy_rp::{peripherals::USB, usb::Driver};
 use embassy_sync::{channel::Channel, pipe::Pipe};
 use embassy_time::{Duration, Timer};
 use embassy_usb::{
-    class::cdc_acm::{self, CdcAcmClass},
     Builder,
+    class::cdc_acm::{self, CdcAcmClass},
 };
 use embassy_usb_driver::EndpointError;
-use futures::{select_biased, FutureExt};
+use futures::{FutureExt, select_biased};
 use msgpck::{MsgPack, MsgUnpack, PackErr, UnpackErr};
 use static_cell::StaticCell;
 
@@ -28,14 +28,15 @@ pub static IN: Channel<CS, HostMsg, 16> = Channel::new(); // TODO: read from thi
 pub struct UsbSerial;
 
 pub async fn setup(usb_builder: &mut Builder<'static, Driver<'static, USB>>) -> &'static UsbSerial {
-    let spawner = Spawner::for_current_executor().await;
+    // TODO: FIXME: unsafe
+    let spawner = unsafe { Spawner::for_current_executor().await };
 
     static STATE: StaticCell<cdc_acm::State<'static>> = StaticCell::new();
     let state = STATE.init(cdc_acm::State::new());
 
     let class = CdcAcmClass::new(usb_builder, state, MAX_PACKET_SIZE as u16);
 
-    spawner.must_spawn(serial_task(class));
+    spawner.spawn(serial_task(class).unwrap());
 
     static USB_SERIAL: UsbSerial = UsbSerial;
     &USB_SERIAL

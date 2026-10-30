@@ -3,7 +3,7 @@ use std::mem;
 use serde::{Deserialize, Serialize};
 use tk_pie::{button_layout::ButtonLayout, layer::Layer};
 
-use crate::{mat::Mat, ron_utils::RonEdit};
+use crate::app::{mat::Mat, ron_utils::RonEdit};
 
 #[derive(Deserialize, Serialize)]
 #[serde(default)]

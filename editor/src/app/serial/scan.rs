@@ -130,10 +130,11 @@ fn scan_usb_for_devs(p: &Path) -> eyre::Result<Vec<PathBuf>> {
         if meta.is_dir() {
             let mut results = scan_usb_for_devs(&path)?;
             out.append(&mut results);
-        } else if meta.is_file() && f.file_name() == "dev" {
-            if let Some(parent) = path.parent() {
-                out.push(parent.to_owned());
-            }
+        } else if meta.is_file()
+            && f.file_name() == "dev"
+            && let Some(parent) = path.parent()
+        {
+            out.push(parent.to_owned());
         }
     }
 
