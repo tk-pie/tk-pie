@@ -10,6 +10,15 @@ pub mod keyboard;
 #[cfg(target_arch = "arm")]
 pub mod serial;
 
+#[cfg(target_arch = "riscv32")]
+pub mod serial {
+    /// STUB IMPL. TODO: FIX
+    // Fix by implementing the above `serial` module for risc-v
+    pub fn serial_send(message: &crate::serial_proto::borrowed::DeviceMsg<'_>) {
+        let _ = message;
+    }
+}
+
 pub const MAX_PACKET_SIZE: u8 = 64;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]

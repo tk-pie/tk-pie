@@ -1,15 +1,16 @@
+use embassy_rp::Peri;
 use embassy_rp::dma::{self, AnyChannel};
 use embassy_rp::interrupt::typelevel::Binding;
 use embassy_rp::pio::program::{JmpCondition, OutDestination, SetDestination, SideSet};
 use embassy_rp::pio::{
-    self, program::Assembler, FifoJoin, Pio, PioPin, ShiftConfig, ShiftDirection,
+    self, FifoJoin, Pio, PioPin, ShiftConfig, ShiftDirection, program::Assembler,
 };
-use embassy_rp::Peri;
 use fixed::FixedU32;
 
 use crate::lights::LightDriver;
 use crate::rgb::Rgb;
 
+/// Ws2812 driver using rp2040 PIO peripheral.
 pub struct Ws2812<P: pio::Instance + 'static> {
     sm: pio::StateMachine<'static, P, 0>,
     dma: Peri<'static, AnyChannel>,
