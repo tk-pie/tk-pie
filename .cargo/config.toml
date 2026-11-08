@@ -1,6 +1,16 @@
 [build]
 # Override default compilation target:
 # target = "thumbv6m-none-eabi"
+# target = "riscv32imac-unknown-none-elf"
+
+[target.riscv32imac-unknown-none-elf]
+rustflags = [
+  # Required to obtain backtraces (e.g. when using the "esp-backtrace" crate.)
+  # NOTE: May negatively impact performance of produced code
+  "-C", "force-frame-pointers",
+]
+
+runner = "espflash flash --monitor"
 
 [target.thumbv6m-none-eabi]
 rustflags = [

@@ -7,13 +7,13 @@ edition = "2024"
 
 [dependencies]
 bytemuck = { workspace = true, features = ["derive"] }
-cortex-m-rt.workspace = true
 crc-any.workspace = true
 critical-section.workspace = true
 embassy-futures.workspace = true
 embassy-sync.workspace = true
 embassy-time.workspace = true
 embedded-hal.workspace = true
+embedded-hal-async.workspace = true
 futures = { workspace = true, default-features = false, features = ["async-await"] }
 glam = { workspace = true, default-features = false, features = ["libm"] }
 heapless.workspace = true
@@ -26,30 +26,36 @@ rtt-target.workspace = true
 serde = { workspace = true, default-features = false, features = ["derive", "alloc"] }
 static_cell.workspace = true
 
-[target.'cfg(not(target_arch = "x86_64"))'.dependencies]
-cortex-m.workspace = true
+# Dependencies for non-embedded.
+[target.'cfg(not(target_os = "none"))'.dependencies]
+embassy-time = { workspace = true, features = ["std"] }
+
+# Dependencies for any embedded target.
+[target.'cfg(target_os = "none")'.dependencies]
 embassy-usb = { workspace = true, default-features = false }
 embedded-alloc = { workspace = true, features = ["llff"] }
 embedded-io-async.workspace = true
-fixed.workspace = true
-# once_cell = { workspace = true, default-features = false }
-pio-proc.workspace = true
 postcard = { workspace = true, features = ["alloc"] }
-smart-leds.workspace = true
 
-[target.'cfg(target_arch = "x86_64")'.dependencies]
-embassy-time = { workspace = true, features = ["std"] }
-
-[target.thumbv6m-none-eabi.dependencies]
+# Dependencies for embedded ARM
+[target.'cfg(all(target_os = "none", target_arch = "arm"))'.dependencies]
+cortex-m.workspace = true
+cortex-m-rt.workspace = true
 embassy-executor = { workspace = true, features = ["platform-cortex-m", "nightly", "executor-thread", "executor-interrupt", "embassy-time-driver"] }
 embassy-rp = { workspace = true, features = ["rp2040", "time-driver", "critical-section-impl"] }
 embassy-usb = { workspace = true, features = ["usbd-hid"] }
 embassy-usb-driver.workspace = true
-embassy-usb-logger.workspace = true
+fixed.workspace = true
 usb-device.workspace = true
 usbd-hid.workspace = true
 
-[target.'cfg(target_arch = "x86_64")'.dev-dependencies]
+# Dependencies for embedded RISC-V
+[target.'cfg(all(target_os = "none", target_arch = "riscv32"))'.dependencies]
+embassy-executor = { workspace = true, features = ["platform-riscv32", "nightly", "executor-thread", "embassy-time-driver"] }
+esp-hal = { workspace = true, features = ["esp32c6"] }
+
+# Dev-dependencies for non-embedded.
+[target.'cfg(not(target_os = "none"))'.dev-dependencies]
 embassy-time = { workspace = true, features = ["std", "generic-queue-128"] }
 simple_logger.workspace = true
 
