@@ -16,10 +16,10 @@ use super::{
 };
 
 use crate::{
-    Spawners,
     event::Half,
     interrupts::Irqs,
     keyboard::{KbEvents, KbEventsRx, KbEventsTx},
+    spawners::Spawners,
     usb::USB_EVENTS,
 };
 

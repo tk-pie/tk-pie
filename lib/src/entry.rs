@@ -1,4 +1,4 @@
-use embassy_executor::{Executor, InterruptExecutor, SendSpawner, Spawner};
+use embassy_executor::{Executor, InterruptExecutor};
 use embassy_rp::gpio::{Level, Output};
 use embassy_rp::interrupt;
 use embassy_rp::interrupt::{InterruptExt, Priority};
@@ -10,6 +10,7 @@ use crate::{
     lights::LightDriver,
     logger::{LogMultiplexer, LogOutput},
     rgb::Rgb,
+    spawners::Spawners,
     util::stall,
     {allocator, hemicom::uart, rtt, usb},
 };
@@ -17,18 +18,6 @@ use crate::{
 static EXECUTOR_HIGH: InterruptExecutor = InterruptExecutor::new();
 static EXECUTOR_MED: InterruptExecutor = InterruptExecutor::new();
 static EXECUTOR_LOW: StaticCell<Executor> = StaticCell::new();
-
-#[derive(Copy, Clone)]
-pub struct Spawners {
-    /// High priority executor. Tasks spawned on this will preempt medium and low priority tasks.
-    pub high: SendSpawner,
-
-    /// Medium priority executor. Tasks spawned on this will preempt low priority tasks.
-    pub med: SendSpawner,
-
-    /// Lom priority executor. Tasks spawned on this will be preempted by higher priority tasks.
-    pub low: Spawner,
-}
 
 #[interrupt]
 unsafe fn SWI_IRQ_1() {

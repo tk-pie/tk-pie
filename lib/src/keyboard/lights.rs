@@ -1,16 +1,16 @@
 use core::future::pending;
 
 use embassy_time::{Duration, Instant, Timer};
-use futures::{select_biased, FutureExt};
+use futures::{FutureExt, select_biased};
 
 use crate::{
     button::Button,
     lights::shaders::{PowerOffAnim, PowerOnAnim, Shader, Shaders},
     rgb::Rgb,
-    usb::{UsbEvent, USB_EVENTS},
+    usb::{USB_EVENTS, UsbEvent},
 };
 
-use super::{Event, EventKind, KbEvents, State, SWITCH_COUNT};
+use super::{Event, EventKind, KbEvents, SWITCH_COUNT, State};
 
 /// Duration until the keyboard starts the idle animation
 const UNTIL_IDLE: Duration = Duration::from_secs(30);
@@ -116,9 +116,10 @@ pub(super) async fn task(mut events: KbEvents, state: &'static State) {
 }
 
 async fn play_shader(state: &'static State, shader: &impl Shader) {
+    // TODO make configurable
     const SWITCH_COORDS: [(u16, u16); SWITCH_COUNT] = [
-        (0, 1),
-        (1, 1),
+        (0, 1), // switch 0 is at x=0, y=1
+        (1, 1), // etc..
         (2, 1),
         (3, 1),
         (4, 1),

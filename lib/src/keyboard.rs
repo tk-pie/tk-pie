@@ -1,47 +1,61 @@
+#[cfg(target_arch = "arm")]
 mod lights;
 
 use core::sync::atomic::Ordering;
 
 use alloc::vec::Vec;
-use embassy_rp::{
-    Peri,
-    gpio::{AnyPin, Input, Pin, Pull},
-    peripherals::PIO1,
-};
 use embassy_sync::pubsub::{ImmediatePublisher, PubSubChannel, Subscriber};
 use embassy_time::{Duration, Instant, Timer};
 use log::{debug, error, info, warn};
 use static_cell::StaticCell;
 
+#[cfg(target_arch = "riscv32")]
+use crate::lights::NoopLightDriver;
+
+#[cfg(target_arch = "arm")]
+use crate::ws2812::Ws2812;
+#[cfg(target_arch = "arm")]
+use embassy_rp::{
+    gpio::{Pin, Pull},
+    peripherals::PIO1,
+};
+
 use crate::{
-    Spawners,
     atomics::AtomicCoord,
     button::{Button, LayerDir, LayerShift},
     event::{
         Half,
         switch::{Event, EventKind},
     },
+    hal::{AnyPin, Input},
     layer::{Layer, Layers},
     lights::Lights,
     serial_proto::{
         borrowed::DeviceMsg,
         owned::{ChangeLayer, SwitchPress, SwitchRelease},
     },
+    spawners::Spawners,
     usb::serial::serial_send,
     util::{CS, SwapCell, SwapCellRead},
-    ws2812::Ws2812,
 };
 
+#[cfg(target_arch = "arm")]
+type LedDriver = Ws2812<PIO1>;
+
+// TODO: Implement LED driver for RISC-V
+#[cfg(target_arch = "riscv32")]
+type LedDriver = NoopLightDriver;
+
 pub struct KeyboardConfig {
-    /// Which board is this.
+    /// Whether this is the left or right board.
     pub half: Half,
     /// Array of input pins of each switch
-    pub pins: [Peri<'static, AnyPin>; SWITCH_COUNT],
+    pub pins: [AnyPin<'static>; SWITCH_COUNT],
     /// Array of LED indices of each switch
     pub led_map: [usize; SWITCH_COUNT],
-    pub led_driver: Ws2812<PIO1>,
     /// Matrix of layers. Stored as rows of columns.
     pub layers: Vec<Vec<Layer>>,
+    pub led_driver: LedDriver,
 }
 
 struct State {
@@ -53,7 +67,7 @@ struct State {
     layers: SwapCellRead<Layers>,
     /// Array of LED indices of each switch
     led_map: [usize; SWITCH_COUNT],
-    lights: Lights<Ws2812<PIO1>, SWITCH_COUNT>,
+    lights: Lights<LedDriver, SWITCH_COUNT>,
 }
 
 /// Number of [KbEvents] returned by [KeyboardConfig::create].
@@ -144,6 +158,7 @@ impl KeyboardConfig {
             .unwrap(),
         );
 
+        #[cfg(target_arch = "arm")] // TODO: RISC-V
         spawners.low.spawn(
             lights::task(
                 KbEvents {
@@ -200,15 +215,30 @@ impl KbEventsTx {
     }
 }
 
+// TODO: make all of these configurable
 pub const MOD_TAP_TIME: Duration = Duration::from_millis(200);
 pub const SWITCH_COUNT: usize = 18;
 pub const DEBOUNCE_THRESHOLD: Duration = Duration::from_millis(15);
 
 /// Task for monitoring a single switch pin, and handling button presses.
+#[cfg(target_arch = "arm")]
 #[embassy_executor::task(pool_size = 18)]
-async fn switch_task(switch_num: usize, pin: Peri<'static, AnyPin>, state: &'static State) -> ! {
+async fn switch_task(switch_num: usize, pin: AnyPin<'static>, state: &'static State) -> ! {
     let _pin_nr = pin.pin();
-    let mut pin = Input::new(pin, Pull::Up);
+    let pin = Input::new(pin, Pull::Up);
+    switch_task_inner(switch_num, pin, state).await
+}
+
+/// Task for monitoring a single switch pin, and handling button presses.
+#[cfg(target_arch = "riscv32")]
+#[embassy_executor::task(pool_size = 18)]
+async fn switch_task(switch_num: usize, pin: AnyPin<'static>, state: &'static State) -> ! {
+    use esp_hal::gpio::{InputConfig, Pull};
+    let pin = Input::new(pin, InputConfig::default().with_pull(Pull::Up));
+    switch_task_inner(switch_num, pin, state).await
+}
+
+async fn switch_task_inner(switch_num: usize, mut pin: Input<'static>, state: &'static State) -> ! {
     let events = KB_EVENTS.immediate_publisher();
     loop {
         // pins are pull-up, so when the switch is pressed they are brought low.

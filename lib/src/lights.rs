@@ -18,6 +18,9 @@ pub trait LightDriver {
     fn write(&mut self, colors: &[Rgb]) -> impl Future<Output = ()>;
 }
 
+/// A light driver that does nothing.
+pub struct NoopLightDriver;
+
 impl<D: LightDriver, const N: usize> Lights<D, N> {
     pub const fn new(driver: D) -> Self {
         Lights {
@@ -43,4 +46,8 @@ impl<D: LightDriver, const N: usize> Lights<D, N> {
     pub async fn refresh(&self) {
         self.update(|_| ()).await;
     }
+}
+
+impl LightDriver for NoopLightDriver {
+    async fn write(&mut self, _colors: &[Rgb]) {}
 }
